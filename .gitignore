@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# PyTorch
+*.pth
+*.pt
+!models/mnist_cnn_best.pth  # Keep the best model if file size permits
+# Adjust if model is too large for GitHub ( > 100MB)
+
+# IDE
+.idea/
+.vscode/
+
+# Project specific
+data/
+outputs/
+logs/
+brain/
+*.log
