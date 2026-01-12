@@ -1,31 +1,34 @@
 """
-EasyOCR 识别模块
-使用 EasyOCR 实现更强大的多数字识别
+本地 OCR 识别模块
+使用本地训练的 CNN 模型进行数字识别
 """
 
-import io
-import easyocr
-import numpy as np
-from PIL import Image
+import os
+import torch
+from src.predict import load_model, predict_multi_digits
 
-# 全局 EasyOCR reader（延迟初始化以节省启动时间）
-_reader = None
-
-
-def get_reader():
-    """获取 EasyOCR reader（单例模式）"""
-    global _reader
-    if _reader is None:
-        print("正在初始化 EasyOCR（首次加载需要下载模型）...")
-        # 只识别数字，使用英文模型（更快）
-        _reader = easyocr.Reader(['en'], gpu=False)
-        print("EasyOCR 初始化完成！")
-    return _reader
+# 全局模型实例（延迟初始化）
+_model = None
+_device = None
 
 
-def recognize_digits_easyocr(image):
+def get_local_model():
+    """获取本地模型（单例模式）"""
+    global _model, _device
+    if _model is None:
+        print("正在加载本地 CNN 模型...")
+        try:
+            _model, _device = load_model()
+            print("本地模型加载完成！")
+        except Exception as e:
+            print(f"模型加载失败: {e}")
+            raise e
+    return _model, _device
+
+
+def recognize_digits(image):
     """
-    使用 EasyOCR 识别图像中的数字
+    使用本地模型识别图像中的数字
     
     Args:
         image: PIL Image 对象（白底黑字）
@@ -35,56 +38,25 @@ def recognize_digits_easyocr(image):
         details: 每个检测到的文本的详细信息
         confidence: 平均置信度
     """
-    reader = get_reader()
+    model, device = get_local_model()
     
-    # 转换为 numpy 数组
-    img_array = np.array(image.convert('RGB'))
+    # 使用 predict 模块的多数字识别功能
+    # 注意：predict_multi_digits 内部会处理图像分割和预处理
+    result, details = predict_multi_digits(model, image, device)
     
-    # 使用 EasyOCR 识别
-    # 调整参数以提高手写数字识别效果
-    results = reader.readtext(
-        img_array,
-        allowlist='0123456789',
-        paragraph=False,
-        min_size=5,           # 降低最小尺寸
-        text_threshold=0.3,   # 降低文字检测阈值
-        low_text=0.2,         # 降低低置信度阈值
-        link_threshold=0.2,   # 降低链接阈值
-        canvas_size=1280,     # 放大画布
-        mag_ratio=2.0         # 放大倍率
-    )
-    
-    if not results:
-        return "", [], 0
-    
-    # 按 x 坐标排序（从左到右）
-    results.sort(key=lambda x: x[0][0][0])
-    
-    # 提取结果
-    recognized_text = ""
-    details = []
-    total_confidence = 0
-    
-    for bbox, text, confidence in results:
-        # 只保留数字
-        digits = ''.join(c for c in text if c.isdigit())
-        if digits:
-            recognized_text += digits
-            details.append({
-                'text': digits,
-                'confidence': confidence,
-                'bbox': bbox
-            })
-            total_confidence += confidence
-    
-    avg_confidence = total_confidence / len(details) if details else 0
-    
-    return recognized_text, details, avg_confidence
+    # 计算平均置信度
+    if details:
+        total_conf = sum(d['confidence'] for d in details)
+        avg_confidence = total_conf / len(details)
+    else:
+        avg_confidence = 0.0
+        
+    return result, details, avg_confidence
 
 
 def preprocess_for_ocr(image):
     """
-    为 OCR 预处理图像
+    预处理图像
     
     Args:
         image: PIL Image 对象
@@ -92,13 +64,9 @@ def preprocess_for_ocr(image):
     Returns:
         processed: 处理后的 PIL Image
     """
-    from PIL import ImageOps, ImageFilter
-    
-    # 确保是 RGB
+    # 本地模型在 predict_multi_digits 内部会有专门的预处理
+    # 这里只需确保是 RGB 或 L 模式，简单处理即可
     if image.mode != 'RGB':
         image = image.convert('RGB')
-    
-    # 轻微锐化以增强边缘
-    image = image.filter(ImageFilter.SHARPEN)
     
     return image

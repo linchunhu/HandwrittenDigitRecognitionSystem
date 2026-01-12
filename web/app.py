@@ -12,7 +12,7 @@ from PIL import Image
 
 # 添加项目根目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.ocr_engine import recognize_digits_easyocr, preprocess_for_ocr
+from src.ocr_engine import recognize_digits, preprocess_for_ocr
 
 app = Flask(__name__)
 
@@ -25,7 +25,7 @@ def index():
 
 @app.route('/predict', methods=['POST'])
 def predict_digit():
-    """接收图像并返回预测结果（使用 EasyOCR）"""
+    """接收图像并返回预测结果（使用本地 CNN 模型）"""
     try:
         # 获取图像数据
         data = request.get_json()
@@ -55,8 +55,8 @@ def predict_digit():
         # 预处理
         image = preprocess_for_ocr(image)
         
-        # 使用 EasyOCR 识别
-        result, details, avg_confidence = recognize_digits_easyocr(image)
+        # 使用本地模型识别
+        result, details, avg_confidence = recognize_digits(image)
         
         if not result:
             return jsonify({
@@ -75,7 +75,7 @@ def predict_digit():
             'digit': result,
             'confidence': round(avg_confidence * 100, 2),
             'details': [{
-                'digit': d['text'],
+                'digit': str(d['digit']), # 确保转为字符串
                 'confidence': round(d['confidence'] * 100, 2)
             } for d in details],
             'count': len(details)  # 识别到的文本块个数
@@ -96,19 +96,17 @@ def health():
     """健康检查"""
     return jsonify({
         'status': 'ok',
-        'engine': 'EasyOCR'
+        'engine': 'Local CNN (MNIST)'
     })
 
 
 if __name__ == '__main__':
     print("=" * 50)
-    print("手写数字识别 Web 应用 (EasyOCR)")
+    print("手写数字识别 Web 应用 (Local CNN)")
     print("=" * 50)
     
     print("\n启动服务器...")
     print("请在浏览器中打开: http://localhost:5000")
     print("按 Ctrl+C 停止服务器")
-    print("注意：首次识别时需要下载 EasyOCR 模型\n")
     
     app.run(host='0.0.0.0', port=5000, debug=True)
-
